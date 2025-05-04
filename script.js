@@ -1,366 +1,412 @@
+// Main game canvas
 const canvas = document.getElementById('tetris');
 const context = canvas.getContext('2d');
+const scale = 20; // Size of each block in pixels
+context.scale(scale, scale);
+const boardWidth = canvas.width / scale;
+const boardHeight = canvas.height / scale;
+
+// Next piece canvas
+const nextCanvas = document.getElementById('next');
+const nextContext = nextCanvas.getContext('2d');
+const nextScale = 20; // Use same scale or adjust if needed
+nextContext.scale(nextScale, nextScale);
+const nextCanvasWidth = nextCanvas.width / nextScale;
+const nextCanvasHeight = nextCanvas.height / nextScale;
+
+
+// Game elements
 const scoreElement = document.getElementById('score');
+const startPauseButton = document.getElementById('start-pause');
+const gameOverOverlay = document.getElementById('game-over-overlay');
 
-const ROW = 20;
-const COL = 10;
-const SQ = canvas.width / COL; // Size of a square
-const VACANT = '#ddd'; // Color of an empty square
+// Game state
+let gameState = 'paused'; // 'playing', 'paused', 'gameOver'
+let animationFrameId = null;
 
-// Draw a square
+const board = createBoard(boardWidth, boardHeight);
+
+console.log(`Board dimensions: ${boardWidth}x${boardHeight}`);
+
+// --- Tetromino Shapes and Colors ---
+const colors = [
+    null,       // 0 represents empty cell
+    '#FF0D72',  // T
+    '#0DC2FF',  // O
+    '#0DFF72',  // L
+    '#F538FF',  // J
+    '#FF8E0D',  // I
+    '#FFE138',  // S
+    '#3877FF',  // Z
+];
+
+const tetrominoes = {
+    'T': [
+        [0, 1, 0],
+        [1, 1, 1],
+        [0, 0, 0]
+    ],
+    'O': [
+        [2, 2],
+        [2, 2]
+    ],
+    'L': [
+        [0, 3, 0],
+        [0, 3, 0],
+        [0, 3, 3]
+    ],
+    'J': [
+        [0, 4, 0],
+        [0, 4, 0],
+        [4, 4, 0]
+    ],
+    'I': [
+        [0, 5, 0, 0],
+        [0, 5, 0, 0],
+        [0, 5, 0, 0],
+        [0, 5, 0, 0]
+    ],
+    'S': [
+        [0, 6, 6],
+        [6, 6, 0],
+        [0, 0, 0]
+    ],
+    'Z': [
+        [7, 7, 0],
+        [0, 7, 7],
+        [0, 0, 0]
+    ]
+};
+
+// --- Game Board ---
+function createBoard(width, height) {
+    const board = [];
+    while (height--) {
+        board.push(new Array(width).fill(0));
+    }
+    return board;
+}
+
+// --- Drawing Functions ---
 function drawSquare(x, y, color) {
     context.fillStyle = color;
-    context.fillRect(x * SQ, y * SQ, SQ, SQ);
-
-    context.strokeStyle = '#555'; // Border color
-    context.strokeRect(x * SQ, y * SQ, SQ, SQ);
+    context.fillRect(x, y, 1, 1);
+    context.strokeStyle = '#333'; // Border color
+    context.lineWidth = 0.1;
+    context.strokeRect(x, y, 1, 1);
 }
 
-// Create the board
-let board = [];
-for (let r = 0; r < ROW; r++) {
-    board[r] = [];
-    for (let c = 0; c < COL; c++) {
-        board[r][c] = VACANT;
-    }
-}
-
-// Draw the board
-function drawBoard() {
-    for (let r = 0; r < ROW; r++) {
-        for (let c = 0; c < COL; c++) {
-            drawSquare(c, r, board[r][c]);
-        }
-    }
-}
-
-drawBoard();
-
-let score = 0;
-
-// --- Tetrominoes and their colors ---
-const PIECES = [
-    [Z, "red"],
-    [S, "green"],
-    [T, "purple"],
-    [O, "blue"],
-    [L, "orange"],
-    [I, "cyan"],
-    [J, "yellow"]
-];
-
-// --- The Objects ---
-
-// Generate random pieces
-function randomPiece() {
-    let r = Math.floor(Math.random() * PIECES.length); // 0 -> 6
-    return new Piece(PIECES[r][0], PIECES[r][1]);
-}
-
-let p = randomPiece();
-
-// The Piece object
-function Piece(tetromino, color) {
-    this.tetromino = tetromino;
-    this.color = color;
-
-    this.tetrominoN = 0; // Start from the first rotation pattern
-    this.activeTetromino = this.tetromino[this.tetrominoN];
-
-    // Default starting position
-    this.x = 3; // Middle of the board approximately
-    this.y = -2; // Start slightly above the visible board
-}
-
-// Fill function to draw the piece
-Piece.prototype.fill = function(color) {
-    for (let r = 0; r < this.activeTetromino.length; r++) {
-        for (let c = 0; c < this.activeTetromino[r].length; c++) {
-            // Draw only occupied squares
-            if (this.activeTetromino[r][c]) {
-                drawSquare(this.x + c, this.y + r, color);
+function drawMatrix(matrix, offsetX, offsetY) {
+    matrix.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value !== 0) {
+                drawSquare(x + offsetX, y + offsetY, colors[value]);
             }
-        }
-    }
+        });
+    });
 }
 
-// Draw a piece to the board
-Piece.prototype.draw = function() {
-    this.fill(this.color);
-}
+function drawNextPiece() {
+    // Clear next canvas
+    nextContext.fillStyle = '#eee'; // Background color matching CSS
+    nextContext.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
 
-// Undraw a piece (fill with vacant color)
-Piece.prototype.unDraw = function() {
-    this.fill(VACANT);
-}
+    if (!player.nextMatrix) return;
 
-// Move Down the piece
-Piece.prototype.moveDown = function() {
-    if (!this.collision(0, 1, this.activeTetromino)) {
-        this.unDraw();
-        this.y++;
-        this.draw();
-    } else {
-        // Lock the piece and generate a new one
-        this.lock();
-        p = randomPiece();
-    }
-}
+    // Calculate position to center the piece
+    const matrix = player.nextMatrix;
+    const matrixWidth = matrix[0].length;
+    const matrixHeight = matrix.length;
+    const offsetX = Math.floor((nextCanvasWidth - matrixWidth) / 2);
+    const offsetY = Math.floor((nextCanvasHeight - matrixHeight) / 2);
 
-// Move Right the piece
-Piece.prototype.moveRight = function() {
-    if (!this.collision(1, 0, this.activeTetromino)) {
-        this.unDraw();
-        this.x++;
-        this.draw();
-    }
-}
-
-// Move Left the piece
-Piece.prototype.moveLeft = function() {
-    if (!this.collision(-1, 0, this.activeTetromino)) {
-        this.unDraw();
-        this.x--;
-        this.draw();
-    }
-}
-
-// Rotate the piece
-Piece.prototype.rotate = function() {
-    let nextPattern = this.tetromino[(this.tetrominoN + 1) % this.tetromino.length];
-    let kick = 0;
-
-    if (this.collision(0, 0, nextPattern)) {
-        if (this.x > COL / 2) {
-            // It's the right wall
-            kick = -1; // We need to move the piece to the left
-        } else {
-            // It's the left wall
-            kick = 1; // We need to move the piece to the right
-        }
-    }
-
-    if (!this.collision(kick, 0, nextPattern)) {
-        this.unDraw();
-        this.x += kick;
-        this.tetrominoN = (this.tetrominoN + 1) % this.tetromino.length; // Update the pattern index
-        this.activeTetromino = this.tetromino[this.tetrominoN]; // Update the active tetromino
-        this.draw();
-    }
-}
-
-// Lock the piece in place
-Piece.prototype.lock = function() {
-    for (let r = 0; r < this.activeTetromino.length; r++) {
-        for (let c = 0; c < this.activeTetromino[r].length; c++) {
-            // Skip vacant squares
-            if (!this.activeTetromino[r][c]) {
-                continue;
+    // Draw the piece using the main context's functions but on nextContext
+    matrix.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value !== 0) {
+                // Temporarily adjust fillStyle and strokeStyle for nextContext
+                nextContext.fillStyle = colors[value];
+                nextContext.fillRect(x + offsetX, y + offsetY, 1, 1);
+                nextContext.strokeStyle = '#333';
+                nextContext.lineWidth = 0.1 / (scale / nextScale); // Adjust line width based on scale difference if any
+                nextContext.strokeRect(x + offsetX, y + offsetY, 1, 1);
             }
-            // Pieces to lock on top = game over
-            if (this.y + r < 0) {
-                alert("Game Over");
-                // Stop request animation frame
-                gameOver = true;
-                break;
-            }
-            // Lock the piece onto the board
-            board[this.y + r][this.x + c] = this.color;
-        }
-    }
-    // Remove full rows
-    for (let r = 0; r < ROW; r++) {
-        let isRowFull = true;
-        for (let c = 0; c < COL; c++) {
-            isRowFull = isRowFull && (board[r][c] !== VACANT);
-        }
-        if (isRowFull) {
-            // If the row is full, move down all rows above it
-            for (let y = r; y > 1; y--) {
-                for (let c = 0; c < COL; c++) {
-                    board[y][c] = board[y - 1][c];
+        });
+    });
+}
+
+
+// --- Game Logic Functions ---
+
+function merge(board, player) {
+    player.matrix.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value !== 0) {
+                // Ensure we don't try to write outside board bounds vertically
+                if (y + player.pos.y < board.length) {
+                    board[y + player.pos.y][x + player.pos.x] = value;
                 }
             }
-            // The top row board[0] has no row above it
-            for (let c = 0; c < COL; c++) {
-                board[0][c] = VACANT;
-            }
-            // Increment the score
-            score += 10;
+        });
+    });
+}
+
+function rotate(matrix, dir) {
+    // Transpose + Reverse = Rotate
+    // Transpose: Swap rows and columns
+    for (let y = 0; y < matrix.length; ++y) {
+        for (let x = 0; x < y; ++x) {
+            [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
         }
     }
-    // Update the board
-    drawBoard();
 
-    // Update score
-    scoreElement.innerHTML = score;
+    // Reverse each row to complete rotation
+    if (dir > 0) { // Clockwise
+        matrix.forEach(row => row.reverse());
+    } else { // Counter-clockwise
+        matrix.reverse();
+    }
+    return matrix;
+}
+
+function playerRotate(dir) {
+    const pos = player.pos.x;
+    let offset = 1;
+    const originalMatrix = JSON.parse(JSON.stringify(player.matrix)); // Deep copy
+
+    player.matrix = rotate(player.matrix, dir);
+
+    // Collision check after rotation - implement wall kicks
+    while (collide(board, player)) {
+        player.pos.x += offset;
+        offset = -(offset + (offset > 0 ? 1 : -1)); // Try moving alternating left/right
+        if (offset > player.matrix[0].length) { // If offset is too large, rotation failed
+            player.matrix = originalMatrix; // Revert matrix
+            player.pos.x = pos; // Revert position
+            return; // Exit rotation attempt
+        }
+    }
+    // If loop completes without returning, rotation (with potential kick) was successful
 }
 
 
-// Collision detection function
-Piece.prototype.collision = function(x, y, piece) {
-    for (let r = 0; r < piece.length; r++) {
-        for (let c = 0; c < piece[r].length; c++) {
-            // If the square is empty, skip it
-            if (!piece[r][c]) {
-                continue;
+function boardSweep() {
+    let rowCount = 0;
+    outer: for (let y = board.length - 1; y > 0; --y) {
+        for (let x = 0; x < board[y].length; ++x) {
+            if (board[y][x] === 0) {
+                continue outer; // Row is not full, check next row up
             }
+        }
 
-            // Coordinates of the piece after movement
-            let newX = this.x + c + x;
-            let newY = this.y + r + y;
+        // If we reach here, the row is full
+        const row = board.splice(y, 1)[0].fill(0); // Remove the full row
+        board.unshift(row); // Add a new empty row at the top
+        ++y; // Re-check the current y index as rows shifted down
 
-            // Conditions for collision
-            if (newX < 0 || newX >= COL || newY >= ROW) {
-                return true; // Collision with walls or bottom
-            }
-            // Skip negative Y values - checking above the board boundary
-            if (newY < 0) {
-                continue;
-            }
-            // Check for collision with locked pieces
-            if (board[newY][newX] !== VACANT) {
-                return true;
+        rowCount++;
+    }
+
+    // Update score based on cleared lines
+    if (rowCount > 0) {
+        // Simple scoring: 10 points per line, bonus for multiple lines
+        player.score += rowCount * 10 * rowCount; // e.g., 1=10, 2=40, 3=90, 4=160
+        scoreElement.innerText = player.score;
+        console.log(`Cleared ${rowCount} rows! Score: ${player.score}`);
+    }
+}
+
+
+const tetrominoKeys = 'ILJOTSZ';
+
+function generateNewPiece() {
+    const randomType = tetrominoKeys[Math.floor(Math.random() * tetrominoKeys.length)];
+    return JSON.parse(JSON.stringify(tetrominoes[randomType])); // Deep copy
+}
+
+function playerReset() {
+    // Current piece becomes the next piece, generate a new next piece
+    player.matrix = player.nextMatrix || generateNewPiece(); // Use next or generate if first time
+    player.nextMatrix = generateNewPiece();
+    player.pos.y = 0;
+    player.pos.x = Math.floor(boardWidth / 2) - Math.floor(player.matrix[0].length / 2);
+
+    drawNextPiece(); // Update the preview
+
+    // Game Over check
+    if (collide(board, player)) {
+        console.log("GAME OVER");
+        gameState = 'gameOver';
+        gameOverOverlay.style.display = 'flex'; // Show overlay
+        startPauseButton.innerText = 'Restart'; // Change button text
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId); // Stop the loop
+            animationFrameId = null;
+        }
+    }
+}
+
+// --- Player State ---
+const player = {
+    pos: { x: 0, y: 0 },
+    matrix: null,      // Current falling piece
+    nextMatrix: null,  // Next piece to fall
+    score: 0,
+};
+
+
+// --- Collision Detection ---
+function collide(board, player) {
+    const [matrix, offset] = [player.matrix, player.pos];
+    for (let y = 0; y < matrix.length; ++y) {
+        for (let x = 0; x < matrix[y].length; ++x) {
+            if (matrix[y][x] !== 0 && // Check if it's part of the piece
+                (board[y + offset.y] && // Check if the row exists on the board
+                 board[y + offset.y][x + offset.x]) !== 0) { // Check if the board cell is occupied
+                return true; // Collision detected
             }
         }
     }
-    return false;
+    return false; // No collision
 }
 
 
-// --- Control the piece ---
-document.addEventListener("keydown", CONTROL);
-
-function CONTROL(event) {
-    if (event.keyCode == 37) { // Left arrow
-        p.moveLeft();
-        dropStart = Date.now(); // Reset drop timer
-    } else if (event.keyCode == 38) { // Up arrow (Rotate)
-        p.rotate();
-        dropStart = Date.now(); // Reset drop timer
-    } else if (event.keyCode == 39) { // Right arrow
-        p.moveRight();
-        dropStart = Date.now(); // Reset drop timer
-    } else if (event.keyCode == 40) { // Down arrow (Accelerate drop)
-        p.moveDown();
+// --- Player Movement ---
+function playerMove(dir) {
+    player.pos.x += dir;
+    if (collide(board, player)) {
+        // If collision, move back
+        player.pos.x -= dir;
     }
 }
+
+function playerDrop() {
+    player.pos.y++;
+    if (collide(board, player)) {
+        player.pos.y--; // Move back up
+        merge(board, player); // Merge the piece into the board
+        boardSweep();         // Check for completed lines
+        playerReset();        // Get the next piece
+        // Optionally increase speed over time/score here
+        // dropInterval *= 0.99;
+    }
+    dropCounter = 0; // Reset counter after any drop attempt (manual or auto)
+}
+
+
+// --- Game State & Timing ---
+let dropCounter = 0;
+let dropInterval = 1000; // Drop every 1000ms (1 second)
+let lastTime = 0;
+
 
 // --- Game Loop ---
-let dropStart = Date.now();
-let gameOver = false;
+function draw() {
+    // Clear canvas (draw background)
+    context.fillStyle = '#ddd'; // Background color matching CSS
+    context.fillRect(0, 0, canvas.width, canvas.height);
 
-function drop() {
-    let now = Date.now();
-    let delta = now - dropStart;
-    if (delta > 1000) { // Drop every 1 second
-        p.moveDown();
-        dropStart = Date.now();
-    }
-    if (!gameOver) {
-        requestAnimationFrame(drop);
+    // Draw the fixed blocks on the board
+    drawMatrix(board, 0, 0);
+
+    // Draw the current player piece
+    // Draw the current player piece only if the game is not over
+    if (gameState !== 'gameOver' && player.matrix) {
+        drawMatrix(player.matrix, player.pos.x, player.pos.y);
     }
 }
 
-// Need to define the actual shapes (Tetrominoes)
-// Z shape
-const Z = [
-    [[1, 1, 0],
-     [0, 1, 1],
-     [0, 0, 0]],
+function update(time = 0) {
+    if (gameState !== 'playing') {
+        // If paused or game over, don't proceed with game logic, but keep requesting frames
+        // to allow potential restart or unpause via button.
+        // Alternatively, cancel the frame request and restart it on button press.
+        // Let's keep it running for simplicity of restart/unpause.
+        animationFrameId = requestAnimationFrame(update);
+        return;
+    }
 
-    [[0, 0, 1],
-     [0, 1, 1],
-     [0, 1, 0]]
-];
+    const deltaTime = time - lastTime;
+    lastTime = time;
 
-// S shape
-const S = [
-    [[0, 1, 1],
-     [1, 1, 0],
-     [0, 0, 0]],
+    dropCounter += deltaTime;
+    if (dropCounter > dropInterval) {
+        playerDrop(); // playerDrop now handles landing, merging, reset, and game over check
+    }
 
-    [[0, 1, 0],
-     [0, 1, 1],
-     [0, 0, 1]]
-];
+    // Draw everything
+    draw();
 
-// T shape
-const T = [
-    [[0, 1, 0],
-     [1, 1, 1],
-     [0, 0, 0]],
+    // Request next frame
+    animationFrameId = requestAnimationFrame(update);
+}
 
-    [[0, 1, 0],
-     [0, 1, 1],
-     [0, 1, 0]],
+// --- Keyboard Input ---
+document.addEventListener('keydown', event => {
+    if (gameState !== 'playing') return; // Ignore input if not playing
 
-    [[0, 0, 0],
-     [1, 1, 1],
-     [0, 1, 0]],
+    // console.log(event.keyCode); // Useful for debugging key codes
+    if (event.keyCode === 37) { // Left arrow
+        playerMove(-1);
+    } else if (event.keyCode === 39) { // Right arrow
+        playerMove(1);
+    } else if (event.keyCode === 40) { // Down arrow
+        playerDrop(); // Manual drop resets dropCounter inside
+    } else if (event.keyCode === 81) { // Q key (rotate counter-clockwise)
+        playerRotate(-1);
+    } else if (event.keyCode === 87 || event.keyCode === 38) { // W key or Up Arrow (rotate clockwise)
+        playerRotate(1);
+    }
+});
 
-    [[0, 1, 0],
-     [1, 1, 0],
-     [0, 1, 0]]
-];
-
-// O shape (Square)
-const O = [
-    [[1, 1],
-     [1, 1]]
-];
-
-// L shape
-const L = [
-    [[0, 0, 1],
-     [1, 1, 1],
-     [0, 0, 0]],
-
-    [[0, 1, 0],
-     [0, 1, 0],
-     [0, 1, 1]],
-
-    [[0, 0, 0],
-     [1, 1, 1],
-     [1, 0, 0]],
-
-    [[1, 1, 0],
-     [0, 1, 0],
-     [0, 1, 0]]
-];
-
-// I shape (Line)
-const I = [
-    [[0, 0, 0, 0],
-     [1, 1, 1, 1],
-     [0, 0, 0, 0],
-     [0, 0, 0, 0]],
-
-    [[0, 1, 0, 0],
-     [0, 1, 0, 0],
-     [0, 1, 0, 0],
-     [0, 1, 0, 0]]
-];
-
-// J shape
-const J = [
-    [[1, 0, 0],
-     [1, 1, 1],
-     [0, 0, 0]],
-
-    [[0, 1, 1],
-     [0, 1, 0],
-     [0, 1, 0]],
-
-    [[0, 0, 0],
-     [1, 1, 1],
-     [0, 0, 1]],
-
-    [[0, 1, 0],
-     [0, 1, 0],
-     [1, 1, 0]]
-];
+// --- Button Control ---
+startPauseButton.addEventListener('click', () => {
+    if (gameState === 'playing') {
+        gameState = 'paused';
+        startPauseButton.innerText = 'Resume';
+        // Optional: Stop animation frame requests here and restart on resume
+        // if (animationFrameId) {
+        //     cancelAnimationFrame(animationFrameId);
+        //     animationFrameId = null;
+        // }
+    } else if (gameState === 'paused') {
+        gameState = 'playing';
+        startPauseButton.innerText = 'Pause';
+        lastTime = performance.now(); // Reset lastTime to avoid large deltaTime jump
+        if (!animationFrameId) { // Restart loop if it was fully stopped
+            update();
+        }
+    } else if (gameState === 'gameOver') {
+        // Restart the game
+        board.forEach(row => row.fill(0)); // Clear board
+        player.score = 0; // Reset score
+        scoreElement.innerText = player.score;
+        playerReset(); // Get first piece, set initial state
+        gameState = 'playing'; // Set state to playing
+        gameOverOverlay.style.display = 'none'; // Hide overlay
+        startPauseButton.innerText = 'Pause';
+        lastTime = performance.now(); // Reset time
+        if (!animationFrameId) { // Ensure loop starts
+            update();
+        }
+    }
+});
 
 
-// Start the game loop
-drop();
+// --- Initial Setup ---
+function initGame() {
+    board.forEach(row => row.fill(0)); // Ensure board is clear
+    player.score = 0;
+    scoreElement.innerText = player.score;
+    player.nextMatrix = null; // Clear any previous next matrix
+    playerReset(); // Get first and next piece
+    drawNextPiece(); // Draw initial next piece
+    draw(); // Draw initial board state
+    gameState = 'paused'; // Start paused
+    startPauseButton.innerText = 'Start';
+    gameOverOverlay.style.display = 'none';
+    console.log("Game initialized. Press Start.");
+}
+
+initGame(); // Set up the game initially
+// update(); // Don't start the loop automatically, wait for button press

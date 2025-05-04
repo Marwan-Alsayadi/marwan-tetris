@@ -8,9 +8,35 @@
 </head>
 <body>
     <h1>Tetris</h1>
-    <canvas id="tetris" width="240" height="400"></canvas>
-    <div>Score: <span id="score">0</span></div>
-
+    <div id="game-container">
+        <div id="left-panel">
+            <div>Next:</div>
+            <canvas id="next" width="80" height="80"></canvas>
+            <div class="controls">
+                <div>Score: <span id="score">0</span></div>
+                <button id="start-pause">Start</button>
+            </div>
+        </div>
+        <div id="game-area">
+            <canvas id="tetris" width="240" height="400"></canvas>
+            <div id="game-over-overlay">GAME OVER</div>
+        </div>
+        <div id="right-panel">
+            <h3>Controls</h3>
+            <ul>
+                <li>&larr; : Move Left</li>
+                <li>&rarr; : Move Right</li>
+                <li>&darr; : Move Down</li>
+                <li>&uarr; / W : Rotate Clockwise</li>
+                <li>Q : Rotate Counter-Clockwise</li>
+            </ul>
+            <h3>Rules</h3>
+            <ul>
+                <li>Complete rows to score points.</li>
+                <li>Game ends if blocks reach the top.</li>
+            </ul>
+        </div>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
