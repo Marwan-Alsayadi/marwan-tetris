@@ -34,23 +34,23 @@ This project implements a classic Tetris game using JavaScript, HTML5 Canvas, an
    
 **2. Start/Pause Functionality:**
 
-    The "Start" button initiates the game, and the text toggles to "Pause" during gameplay, allowing the player to temporarily halt the action. Pressing "Pause" changes the text to "Resume" and stops tetromino movement until clicked again. The "Restart" functionality appears on game over.
+   The "Start" button initiates the game, and the text toggles to "Pause" during gameplay, allowing the player to temporarily halt the action. Pressing "Pause" changes the text to "Resume" and stops tetromino movement until clicked again. The "Restart" functionality appears on game over.
 
 **3. Game Over Overlay:**
 
-    When the game ends, a visual overlay with "GAME OVER" is displayed on the game area, clearly indicating the end of the current game.
+   When the game ends, a visual overlay with "GAME OVER" is displayed on the game area, clearly indicating the end of the current game.
 
 
 
 
 **4. Basic Scoring System:**
 
-    A score counter is implemented, updating in real-time as the player clears lines. The scoring system provides increasing points for clearing multiple lines at once.
+   A score counter is implemented, updating in real-time as the player clears lines. The scoring system provides increasing points for clearing multiple lines at once.
 
 
 **5. Clear Instructions and Rules:**
 
-    A dedicated right-side panel provides easily accessible information on the game controls and the basic rules of Tetris.
+   A dedicated right-side panel provides easily accessible information on the game controls and the basic rules of Tetris.
 
 
 ## Implementation Process
