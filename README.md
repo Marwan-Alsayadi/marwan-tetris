@@ -23,8 +23,6 @@ This project implements a classic Tetris game using JavaScript, HTML5 Canvas, an
 
 ## Added Features with Screenshots
 
-*(Since I cannot directly display screenshots here, I will describe where you would insert them in your actual README.md file. You should take screenshots of the following features and embed them.)*
-
 **1. Next Piece Preview:**
 
    This feature enhances gameplay by showing the player the upcoming tetromino, allowing for strategic planning.
